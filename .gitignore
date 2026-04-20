@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+workspace/
+dev_log/
+*.frd
+*.dat
+*.inp
+*.vtk
+*.vtu
+.vs/
+.idea/
+.vscode/
