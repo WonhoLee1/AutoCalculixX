@@ -152,11 +152,55 @@ class AutoCalculixPipeline:
 
 
 # ----------------------------------------------------------------------
-# Quick test: tray 형상 생성 → 고유진동수 해석
+# 실행 예제 (원하는 케이스의 주석을 해제하여 실행)
 # ----------------------------------------------------------------------
 if __name__ == "__main__":
-    analysis_cfg = ModalAnalysisConfig(job_name="test_tray", num_modes=10, thickness=2.0)
-    geo_cfg      = TrayGeometryConfig(length=100.0, width=50.0, mesh_size=5.0)
-
     pipeline = AutoCalculixPipeline()
+
+    # ------------------------------------------------------------------
+    # 케이스 1: Gmsh로 Tray 형상 직접 생성 → 모달 해석 → 첫 유연체 모드 표시
+    # ------------------------------------------------------------------
+    analysis_cfg = ModalAnalysisConfig(
+        job_name  = "test_tray",
+        num_modes = 10,
+        thickness = 2.0,        # mm
+        E         = 210000.0,   # MPa (Steel)
+        nu        = 0.3,
+        rho       = 7.85e-9,    # ton/mm³
+    )
+    geo_cfg = TrayGeometryConfig(
+        length    = 100.0,      # mm
+        width     = 50.0,       # mm
+        mesh_size = 5.0,        # mm
+    )
     pipeline.run_with_meshing(analysis=analysis_cfg, geometry=geo_cfg)
+
+    # ------------------------------------------------------------------
+    # 케이스 2: 기존 Abaqus INP 메쉬 파일 → 모달 해석 → 첫 유연체 모드 표시
+    # ------------------------------------------------------------------
+    # pipeline.run_from_inp(
+    #     mesh_inp_file = r"D:\path\to\your_mesh.inp",
+    #     analysis = ModalAnalysisConfig(
+    #         job_name  = "my_model",
+    #         num_modes = 10,
+    #         thickness = 1.5,
+    #         elset_name = "Shell_Part",   # INP 파일 내 *ELEMENT 의 ELSET 이름
+    #     ),
+    # )
+
+    # ------------------------------------------------------------------
+    # 케이스 3: 외부 메쉬 파일 (Abaqus INP / OptiStruct FEM·BDF)
+    #           → 모달 해석 → 인터랙티브 모드 선택 루프 (Ctrl+C 로 종료)
+    #
+    # 입력 파일 최소 요건
+    #   Abaqus INP  : *NODE + *ELEMENT (TYPE=S3/S4/S4R 등 셸 타입)
+    #   OptiStruct  : GRID + CQUAD4/CTRIA3 (PSHELL·MAT·SPC 없어도 됨)
+    # ------------------------------------------------------------------
+    # pipeline.run_from_external(
+    #     mesh_file = r"D:\path\to\your_model.fem",   # or .inp / .bdf
+    #     analysis  = ModalAnalysisConfig(
+    #         job_name  = "my_model",
+    #         num_modes = 10,
+    #         thickness = 1.5,
+    #     ),
+    # )
