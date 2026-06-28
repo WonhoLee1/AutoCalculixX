@@ -88,6 +88,13 @@ def run_calculix_analysis(
         f.write("*NODE\n")
         for nid, (x, y, z) in sorted(nodes.items()):
             f.write(f"{nid}, {x:.10g}, {y:.10g}, {z:.10g}\n")
+        
+        # 전체 노드를 Nall 세트로 정의
+        f.write("*NSET, NSET=Nall\n")
+        node_ids = sorted(nodes.keys())
+        for i in range(0, len(node_ids), 10):
+            chunk = node_ids[i:i+10]
+            f.write(", ".join(map(str, chunk)) + "\n")
             
         # Elements 분할 수집 (속성 PID 별로 ELSET을 분류하여 적층)
         elset_elems = {}
@@ -121,28 +128,32 @@ def run_calculix_analysis(
             f.write(f"*SHELL SECTION, ELSET=ELSET_PROP_{pid}, MATERIAL={mat_name}\n")
             f.write(f"{t}\n\n")
             
-        # Boundary Conditions (SPC) 매핑 (STEP 시작 전에 전역으로 적용하거나 STEP 내 공통 적용)
-        if bcs:
-            f.write("*BOUNDARY\n")
-            for nid, dofs, val in bcs:
-                # dofs는 0-based 리스트이므로 CalculiX용 1-based 자유도로 변환
-                for d in dofs:
-                    f.write(f"{nid}, {d+1}, {d+1}, {val:.8f}\n")
-
         # STEP 구문 시작
         f.write("*STEP\n")
-        
+
         # 3-1) 모달 해석 분기
         if analysis_type.lower() == "modal":
             num_modes = analysis_config.get("num_modes", 10)
             f.write("*FREQUENCY\n")
             f.write(f"{num_modes}\n")
-            f.write("*NODE FILE\nU\n") # 변위 모드 형상 출력
-            
+            # 모달: BC를 STEP 외부에서 적용 (KNOT 호환)
+            if bcs:
+                f.write("*BOUNDARY\n")
+                for nid, dofs, val in bcs:
+                    for d in dofs:
+                        f.write(f"{nid}, {d+1}, {d+1}, {val:.8f}\n")
+            f.write("*NODE FILE\nU\n")
+
         # 3-2) 정적 해석 분기
         else:
             f.write("*STATIC\n")
-            
+            # 정적: BC를 STEP 내부에 명시 (KNOT 노드에 올바르게 적용)
+            if bcs:
+                f.write("*BOUNDARY\n")
+                for nid, dofs, val in bcs:
+                    for d in dofs:
+                        f.write(f"{nid}, {d+1}, {d+1}, {val:.8f}\n")
+
             # Concentrated Loads (FORCE) 매핑
             if forces:
                 f.write("*CLOAD\n")
@@ -152,7 +163,8 @@ def run_calculix_analysis(
                         if abs(val) > 1e-12:
                             f.write(f"{nid}, {idx+1}, {val:.8f}\n")
                             
-            f.write("*NODE FILE\nU\n") # 변위 출력
+            f.write("*NODE PRINT, NSET=Nall\nU\n") # 변위 .dat 출력
+            f.write("*NODE FILE\nU\n") # 변위 .frd 출력
             f.write("*EL FILE\nS\n")  # 엘리먼트 셸 응력(Stress) 출력
             
         f.write("*END STEP\n")
